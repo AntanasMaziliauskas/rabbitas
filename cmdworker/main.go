@@ -2,12 +2,13 @@ package main
 
 import (
 	"context"
+	"log"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
 
-	"github.com/AntanasMaziliauskas/rabbitas/boss"
+	"github.com/AntanasMaziliauskas/rabbitas/dispatcher"
 )
 
 func main() {
@@ -17,18 +18,21 @@ func main() {
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM, syscall.SIGSTOP, syscall.SIGKILL)
 
-	Worker := boss.NewWorker(ctx, "amqp://guest:guest@localhost:5672", 3, "testExchange", "testQueueWorker")
-
-	Worker.StartWork()
+	Worker := dispatcher.NewWorker("amqp://guest:guest@localhost:5672")
+	Worker.Listen(ctx)
+	Worker.Register("Add", Add)
 
 	<-stop
 
-	Stop(wg, cancel, *Worker)
+	cancel()
+	wg.Wait()
 }
 
-func Stop(wg *sync.WaitGroup, cancel context.CancelFunc, Worker boss.Boss) {
+func Add(resp dispatcher.TaskResponse) {
+	message := "string"
+	dispatcher.GobUnmarshal(resp.Body, &message)
+	log.Println(message)
 
-	cancel()
-
-	Worker.StopWork()
+	//Kaip cia galiu padaryt, kad nereiketu paduoti exchange name?
+	resp.Publish(nil)
 }

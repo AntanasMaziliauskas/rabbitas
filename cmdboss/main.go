@@ -2,12 +2,14 @@ package main
 
 import (
 	"context"
+	"log"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
+	"time"
 
-	"github.com/AntanasMaziliauskas/rabbitas/boss"
+	"github.com/AntanasMaziliauskas/rabbitas/dispatcher"
 )
 
 func main() {
@@ -17,18 +19,17 @@ func main() {
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM, syscall.SIGSTOP, syscall.SIGKILL)
 
-	Boss := boss.NewBoss(ctx, "amqp://guest:guest@localhost:5672", 3, "testExchange", "testQueue")
+	Boss := dispatcher.NewBoss("amqp://guest:guest@localhost:5672")
 
-	Boss.Start()
+	Boss.Listen(ctx)
 
+	time.Sleep(time.Duration(50) * time.Millisecond)
+	err := Boss.Call("Worker", "Add", "hello", nil)
+	if err != nil {
+		log.Println(err)
+	}
 	<-stop
 
-	Stop(wg, cancel, *Boss)
-}
-
-func Stop(wg *sync.WaitGroup, cancel context.CancelFunc, Boss boss.Boss) {
-
 	cancel()
-
-	Boss.Stop()
+	wg.Wait()
 }
